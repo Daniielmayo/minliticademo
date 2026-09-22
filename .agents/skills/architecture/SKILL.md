@@ -1,0 +1,154 @@
+---
+name: minlitica-architecture
+description: Defines the project architecture, folder organization, naming conventions, and file placement rules for the Minlitica Frontend application (Next.js 16 App Router, React 19). This skill MUST be used whenever creating new features, components, hooks, services, types, or pages.
+---
+
+# Minlitica Frontend Architecture & Development Standards
+
+## Purpose
+This document defines the strict architectural standards for the `minlitica-frontend` repository. Every generated file, refactor, or component creation MUST follow these rules. The current architecture is considered the single source of truth. Do not reorganize folders, invent new patterns, or propose a different architecture unless explicitly requested.
+
+---
+
+## Tech Stack
+- **Framework:** Next.js 16 (App Router), React 19, TypeScript
+- **Styling:** Tailwind CSS v4, shadcn/ui (only pre-existing base components in `components/ui/`)
+- **Data & Visualization:** TanStack Table v8, Recharts
+
+---
+
+## Naming & Casing Conventions
+Strict adherence to naming conventions is required:
+
+| Resource Type | Convention | Example |
+|---|---|---|
+| Route folders (`app/`) | `kebab-case` | `app/(auth)/forget-password/page.tsx` |
+| Feature folders (`features/`) | `kebab-case` | `features/auth/`, `features/mandatory-compliance/` |
+| Shared UI folders (`shared/ui/`) | `kebab-case` | `shared/ui/alert-card/`, `shared/ui/table/` |
+| React Components | `PascalCase` | `TitlesHeader.tsx`, `DataTable.tsx` |
+| Hooks | `camelCase` or `kebab-case.ts` | `useDataTable.ts` or `use-data-table.ts` |
+| Types / Interfaces | `PascalCase` | `types.ts` containing `TitleItem`, `TableProps` |
+| Utils & Services | `camelCase` or `kebab-case.ts` | `formatDate.ts`, `authService.ts` |
+
+---
+
+## Root Folder Responsibilities
+
+### 1. `app/` (Next.js 16 App Router)
+- **Purpose:** Routing, page orchestration, and layouts ONLY.
+- **Allowed:** `layout.tsx`, `page.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`, route groups `(auth)`, `(private)`.
+- **Naming:** Folders in `app/` MUST use `kebab-case` (e.g., `forget-password`, `reset-password`, `administrative-amparo-proceedings`).
+- **Layout Responsibility:** Shared page containers, back-buttons ("Volver a..."), dynamic route shells, and tab navigations (e.g., `TitleTabs`) MUST be defined at the App Router level using `layout.tsx` in `app/`.
+- **FORBIDDEN:** Direct business logic, data fetching calls, custom reusable UI components, or state management inside `app/`.
+- **Page Pattern:** `page.tsx` should only import and render a feature container/component.
+
+```tsx
+// app/(private)/dashboard/titles/page.tsx
+import { TitlesOverview } from "@/features/titles/components/TitlesOverview";
+
+export default function TitlesPage() {
+  return <TitlesOverview />;
+}
+```
+
+---
+
+### 2. `features/` (Domain Business Modules)
+- **Purpose:** Contains all business domains and feature-isolated logic.
+- **Organization:** Keep features **flat** in the first level of `features/` using `kebab-case`. Avoid deep nested features inside other features.
+- **Structure:**
+```text
+features/
+├── auth/
+│   ├── components/
+│   ├── services/
+│   └── types/
+├── dashboard/
+│   ├── components/
+│   └── services/
+├── titles/
+│   ├── components/
+│   ├── services/
+│   └── types/
+└── mandatory-compliance/
+    ├── components/
+    ├── services/
+    └── types/
+```
+- **Rule:** Business logic, domain types, and feature-specific components MUST stay inside their respective `features/` folder.
+
+---
+
+### 3. `shared/` (Cross-Feature Resources)
+- **Purpose:** Stateless, reusable resources shared across multiple features.
+- **Subdirectories:**
+  - `shared/layout/`: Page shell templates (e.g., `auth.tsx`, `dashboard.tsx`).
+  - `shared/ui/`: Atomic design system components (`alert-card`, `charts`, `modal`, `table`, `button`, `input`, `sidebar`, `topbar`).
+- **Rule:** Components in `shared/ui/` MUST NEVER contain business logic, domain-specific data fetching, or knowledge of business entities.
+
+---
+
+### 4. `components/` (shadcn/ui CLI Base)
+- **Purpose:** Reserved strictly for CLI-generated `shadcn/ui` primitive components (`components/ui/`).
+- **Rule:** Do NOT place custom business or composite UI components here.
+
+---
+
+### 5. `lib/`, `services/`, `hooks/`, `utils/`, `context/` (Global Singletons)
+- **`lib/`**: Library configs (e.g., `utils.ts` for `clsx` / `tailwind-merge`).
+- **`services/`**: Global HTTP client, authentication base, storage, API interceptors shared across multiple features.
+- **`hooks/`**: Global custom hooks used by 2+ features (if used by only 1 feature, keep inside `features/<name>/hooks`).
+- **`utils/`**: Helper functions (date formatting, number parsing). No business rules.
+- **`context/`**: Global React Context providers.
+
+---
+
+## Component Placement Decision Tree
+When asked to create a new component, follow this decision tree:
+
+```text
+Is this a base primitive component generated by shadcn/ui?
+├── YES ────────> components/ui/
+└── NO
+    ├── Is it reusable across multiple independent features and strictly presentation-only (no business logic)?
+    │   ├── YES (Page Shell/Layout) ─────> shared/layout/
+    │   └── YES (UI Component) ──────────> shared/ui/<name>/
+    └── NO (Belongs to a specific domain or business process)
+        └──> features/<name>/components/
+```
+
+---
+
+## Special Rules for Complex Components
+
+### 1. Generic DataTable (`shared/ui/table/`)
+- **Location:** `shared/ui/table/`
+- **Responsibilities:** Generic TanStack Table v8 rendering, sorting, pagination, selection, skeleton loading, empty states.
+- **FORBIDDEN:** Data fetching, API routes, business DTO awareness.
+- **Usage:** Features import `DataTable` and pass `columns` and `data`.
+
+### 2. Charts (`shared/ui/charts/`)
+- **Location:** `shared/ui/charts/`
+- **Responsibilities:** Reusable Recharts wrappers (e.g., `DonutChart.tsx`).
+- **Rule:** Charts inside `shared/ui/` MUST be stateless and driven strictly by props.
+
+---
+
+## Anti-Patterns & Strict Constraints
+1. **NEVER** write business logic or `fetch`/`axios` calls inside `app/page.tsx`.
+2. **NEVER** use `camelCase` for route folders in `app/` (use `forget-password`, NOT `forgetPassword`).
+3. **NEVER** place feature-specific UI inside `shared/ui/`.
+4. **NEVER** create deeply nested features inside other features (e.g., `features/dashboard/Titles/MandatoryCompliance/` is wrong; use `features/mandatory-compliance/`).
+5. **NEVER** duplicate components or hooks if a shared implementation exists.
+6. **NEVER** import from `shared/ui/Table-Od/` (Legacy).
+7. **NEVER** define view layouts, back buttons, or tab navigations inside `features/` if they are shared across a dynamic route. Use Next.js layouts (`layout.tsx` under `app/`) instead to avoid duplicating layouts at the feature level.
+
+---
+
+## Pre-Code Generation Checklist
+Before returning any generated code or creating files, evaluate:
+1. [ ] Is the file placed in the correct directory according to its responsibility?
+2. [ ] Are folder names strictly using `kebab-case` and React components using `PascalCase`?
+3. [ ] Is business logic isolated inside `features/`?
+4. [ ] Is `app/` serving only as an orchestration layer for routing?
+5. [ ] Are types properly co-located in `types/` or `features/<name>/types/`?
